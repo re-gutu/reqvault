@@ -63,7 +63,7 @@ const RequestPane = () => {
         </Button>
       </div>
 
-      <Tabs defaultValue="account" className="w-full h-full">
+      <Tabs defaultValue="body" className="w-full h-full">
         <TabsList variant={"line"} className="w-full flex justify-between p-0">
           <div>
             <TabsTrigger value="query-params">Query Params</TabsTrigger>
