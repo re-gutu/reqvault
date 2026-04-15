@@ -13,15 +13,59 @@ import {
 import { Input } from "@/components/ui/input";
 import { Button } from "./ui/button";
 import { useReqVaultContext } from "@/hooks/use-vault";
+import KeyValueEditor from "./keyvalue-editor";
+import type { KeyValuePair } from "./keyvalue-editor";
+import BodyEditor from "./body-editor";
 
 const RequestPane = () => {
-  const {
-    currentRequest,
-    setCurrentRequest,
-    sendRequest,
-    isLoading,
-  } = useReqVaultContext();
+  const { currentRequest, setCurrentRequest, sendRequest, isLoading } =
+    useReqVaultContext();
+  const [localQueryParams, setLocalQueryParams] = React.useState<
+    KeyValuePair[]
+  >([]);
+  const [localHeaders, setLocalHeaders] = React.useState<KeyValuePair[]>([]);
+
+  // Sync with context when currentRequest changes
+  React.useEffect(() => {
+    if (currentRequest) {
+      setLocalQueryParams(
+        Object.entries(currentRequest.queryParams || {}).map(
+          ([key, value]) => ({
+            key,
+            value: String(value),
+          }),
+        ),
+      );
+      setLocalHeaders(
+        Object.entries(currentRequest.headers || {}).map(([key, value]) => ({
+          key,
+          value: String(value),
+        })),
+      );
+    }
+  }, [currentRequest]);
+
+  // When user wants to send, convert back to objects
   const handleSend = () => {
+    const queryParamsObj = Object.fromEntries(
+      localQueryParams
+        .filter((p) => p.key.trim() !== "")
+        .map((p) => [p.key, p.value]),
+    );
+
+    const headersObj = Object.fromEntries(
+      localHeaders
+        .filter((p) => p.key.trim() !== "")
+        .map((p) => [p.key, p.value]),
+    );
+
+    setCurrentRequest((prev) => ({
+      ...prev,
+      queryParams: queryParamsObj,
+      headers: headersObj,
+    }));
+
+    console.log(currentRequest)
     sendRequest();
   };
 
@@ -66,20 +110,44 @@ const RequestPane = () => {
       <Tabs defaultValue="body" className="w-full h-full">
         <TabsList variant={"line"} className="w-full flex justify-between p-0">
           <div>
-            <TabsTrigger value="query-params">Query Params</TabsTrigger>
+            <TabsTrigger value="params">Params</TabsTrigger>
             <TabsTrigger value="body">Body</TabsTrigger>
             <TabsTrigger value="headers">Headers</TabsTrigger>
             <TabsTrigger value="auth">Auth</TabsTrigger>
           </div>
         </TabsList>
+        <TabsContent value="params">
+          <div className="w-full h-full flex items-center justify-center bg-muted">
+            <KeyValueEditor
+              title="Query Parameters"
+              pairs={localQueryParams}
+              onChange={setLocalQueryParams}
+              placeholderKey="param"
+              placeholderValue="value"
+            />
+          </div>
+        </TabsContent>
         <TabsContent value="body">
-          <div className="w-full h-full flex items-center justify-center bg-muted"></div>
+          <div className="w-full h-full flex items-center justify-center bg-muted">
+            <BodyEditor
+              body={currentRequest?.body ?? null}
+              onChange={(newBody) =>
+                setCurrentRequest((prev) => ({ ...prev, body: newBody }))
+              }
+            />
+          </div>
         </TabsContent>
-        <TabsContent value="query-params">
-          <div className="w-full h-full flex items-center justify-center bg-muted"></div>
-        </TabsContent>
+
         <TabsContent value="headers">
-          <div className="w-full h-full flex items-center justify-center bg-muted"></div>
+          <div className="w-full h-full flex items-center justify-center bg-muted">
+            <KeyValueEditor
+              title="Headers"
+              pairs={localHeaders}
+              onChange={setLocalHeaders}
+              placeholderKey="Header-Name"
+              placeholderValue="Value"
+            />
+          </div>
         </TabsContent>
         <TabsContent value="auth">
           <div className="w-full h-full flex items-center justify-center bg-muted"></div>

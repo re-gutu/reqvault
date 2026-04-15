@@ -27,23 +27,38 @@ const ReqVaultContext = createContext<ReqVaultContextValue | null>(null);
 function useReqVaultState(): ReqVaultContextValue {
   const [currentRequest, setCurrentRequest] = useState<ReqVaultRequest>({
     name: "unnamed request",
-    method: "GET",
-    url: "http://localhost:3001/",
+    method: "POST",
+    url: "https://jsonplaceholder.typicode.com/posts",
   });
   const [currentResponse, setCurrentResponse] =
     useState<ExecuteResponse | null>(null);
   const [history, setHistory] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
-  // ==================== SEND REQUEST (Only core logic) ====================
   const sendRequest = useCallback(async () => {
-    if (!currentRequest) {
-      console.warn("No current request to send");
+    // Strong guard - only proceed if we have valid data
+    if (!currentRequest || !currentRequest.url || !currentRequest.method) {
+      console.warn(
+        "Send blocked: invalid or missing currentRequest",
+        currentRequest,
+      );
       return;
     }
 
+    // Prevent concurrent sends
+    if (isLoading) {
+      console.warn("Send blocked: already loading");
+      return;
+    }
+
+    console.log("Sending request with:", {
+      method: currentRequest.method,
+      url: currentRequest.url,
+      hasBody: !!currentRequest.body,
+    });
+
     setIsLoading(true);
-    setCurrentResponse(null); // Clear previous response
+    setCurrentResponse(null);
 
     try {
       const response = await executeApi.run({
@@ -54,23 +69,33 @@ function useReqVaultState(): ReqVaultContextValue {
         body: currentRequest.body,
         authType: currentRequest.authType,
         authValue: currentRequest.authValue,
-        // Only save to history if this request has already been saved (has an id)
         requestId: currentRequest.id || undefined,
       });
 
       setCurrentResponse(response);
 
-      // Refresh history only if this is a saved request
       if (currentRequest.id) {
         const updatedHistory = await historyApi.getForRequest(
           currentRequest.id,
         );
         setHistory(updatedHistory);
       }
-      console.log(response)
-      // If no id → temporary request → do not save history
     } catch (error: any) {
-      console.error("Execution failed:", error.message);
+      console.error("Execution failed:", error);
+
+      let errorMessage = "Unknown error occurred";
+
+      if (error.name === "AbortError") {
+        errorMessage = "Request timeout (30s)";
+      } else if (
+        error.message?.includes("Failed to fetch") ||
+        error.message?.includes("NetworkError")
+      ) {
+        errorMessage =
+          "Unable to connect to the URL. Check your internet connection or the URL.";
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
 
       setCurrentResponse({
         status: 0,
@@ -80,12 +105,12 @@ function useReqVaultState(): ReqVaultContextValue {
         durationMs: 0,
         sizeBytes: 0,
         timestamp: new Date().toISOString(),
-        error: error.message || "Unknown error occurred",
+        error: errorMessage,
       });
     } finally {
       setIsLoading(false);
     }
-  }, [currentRequest]);
+  }, [currentRequest, isLoading]);
 
   return {
     currentRequest,

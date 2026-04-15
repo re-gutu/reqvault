@@ -1,9 +1,7 @@
 "use client";
 
-import type { ReactNode } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "./ui/badge";
-import { Textarea } from "./ui/textarea";
 import { useReqVaultContext } from "@/hooks/use-vault";
 
 function formatBytes(bytes: number): string {
@@ -59,7 +57,6 @@ function ResponseHeadersList({
   );
 }
 
-// Suggested component - ResponseBodyContent.tsx
 function ResponseBodyContent({ body }: { body: string | null | undefined }) {
   if (!body) {
     return (

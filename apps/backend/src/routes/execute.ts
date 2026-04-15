@@ -1,40 +1,66 @@
 // apps/backend/src/routes/execute.ts
-import { Elysia, t } from 'elysia';
-import { getDb } from '../db';
-import type { ExecuteRequest, ExecuteResponse } from '@/types/index';
+import { Elysia, t } from "elysia";
+import { getDb } from "../db";
+import type { ExecuteRequest, ExecuteResponse } from "@/types/index";
 
-export const executeRoute = new Elysia({ prefix: '/execute' })
-  .post('/', async ({ body, set }) => {
-    const { requestId, ...requestData } = body as ExecuteRequest & { requestId?: number };
-    
+export const executeRoute = new Elysia({ prefix: "/execute" }).post(
+  "/",
+  async ({ body, set }) => {
+    console.log("Received raw body:", body);
+
+    if (!body || typeof body !== "object") {
+      set.status = 400;
+      return { error: "Invalid request body - expected object" };
+    }
+
+    const { requestId, ...requestData } = body as ExecuteRequest & {
+      requestId?: number;
+    };
+
+    console.log("Parsed requestData:", requestData);
+
+    if (!requestData.method || !requestData.url) {
+      set.status = 400;
+      return {
+        error: `Missing required fields. Got method: ${requestData.method}, url: ${requestData.url}`,
+      };
+    }
+
     const startTime = Date.now();
-    
+
     try {
       let fullUrl = requestData.url;
-      if (requestData.queryParams && Object.keys(requestData.queryParams).length > 0) {
+      if (
+        requestData.queryParams &&
+        Object.keys(requestData.queryParams).length > 0
+      ) {
         const params = new URLSearchParams(requestData.queryParams);
-        fullUrl += (fullUrl.includes('?') ? '&' : '?') + params.toString();
+        fullUrl += (fullUrl.includes("?") ? "&" : "?") + params.toString();
       }
 
       const headers = { ...requestData.headers };
 
       // Handle authentication
       if (requestData.authType && requestData.authValue) {
-        if (requestData.authType === 'bearer') {
-          headers['Authorization'] = `Bearer ${requestData.authValue}`;
-        } else if (requestData.authType === 'basic') {
-          headers['Authorization'] = `Basic ${btoa(requestData.authValue)}`;
-        } else if (requestData.authType === 'apikey') {
-          headers['X-API-Key'] = requestData.authValue;
+        if (requestData.authType === "bearer") {
+          headers["Authorization"] = `Bearer ${requestData.authValue}`;
+        } else if (requestData.authType === "basic") {
+          headers["Authorization"] = `Basic ${btoa(requestData.authValue)}`;
+        } else if (requestData.authType === "apikey") {
+          headers["X-API-Key"] = requestData.authValue;
         }
       }
 
       const fetchOptions: RequestInit = {
         method: requestData.method.toUpperCase(),
         headers,
-        body: requestData.body && ['POST', 'PUT', 'PATCH', 'DELETE'].includes(requestData.method.toUpperCase()) 
-          ? requestData.body 
-          : undefined,
+        body:
+          requestData.body &&
+          ["POST", "PUT", "PATCH", "DELETE"].includes(
+            requestData.method.toUpperCase(),
+          )
+            ? requestData.body
+            : undefined,
       };
 
       const controller = new AbortController();
@@ -50,10 +76,10 @@ export const executeRoute = new Elysia({ prefix: '/execute' })
       const durationMs = Date.now() - startTime;
 
       let responseBody: string | null = null;
-      const contentType = response.headers.get('content-type') || '';
+      const contentType = response.headers.get("content-type") || "";
 
       try {
-        if (contentType.includes('application/json')) {
+        if (contentType.includes("application/json")) {
           responseBody = JSON.stringify(await response.json());
         } else {
           responseBody = await response.text();
@@ -91,21 +117,21 @@ export const executeRoute = new Elysia({ prefix: '/execute' })
           result.body,
           result.durationMs,
           result.sizeBytes,
-          result.timestamp
+          result.timestamp,
         );
 
         console.log(`✅ Response history saved for request ID: ${requestId}`);
       }
 
       return result;
-
     } catch (error: any) {
       const durationMs = Date.now() - startTime;
-      const errorMsg = error.name === 'AbortError' ? 'Request timeout (30s)' : error.message;
+      const errorMsg =
+        error.name === "AbortError" ? "Request timeout (30s)" : error.message;
 
       const errorResponse: ExecuteResponse = {
         status: 0,
-        statusText: 'Request Failed',
+        statusText: "Request Failed",
         headers: {},
         body: null,
         durationMs,
@@ -117,15 +143,24 @@ export const executeRoute = new Elysia({ prefix: '/execute' })
       set.status = 400;
       return errorResponse;
     }
-  }, {
+  },
+  {
     body: t.Object({
       method: t.String(),
       url: t.String(),
       headers: t.Optional(t.Record(t.String(), t.String())),
       queryParams: t.Optional(t.Record(t.String(), t.String())),
       body: t.Optional(t.String()),
-      authType: t.Optional(t.Union([t.Literal('none'), t.Literal('bearer'), t.Literal('basic'), t.Literal('apikey')])),
+      authType: t.Optional(
+        t.Union([
+          t.Literal("none"),
+          t.Literal("bearer"),
+          t.Literal("basic"),
+          t.Literal("apikey"),
+        ]),
+      ),
       authValue: t.Optional(t.String()),
-      requestId: t.Optional(t.Number()),   // <-- New: optional request ID to save history
-    })
-  });
+      requestId: t.Optional(t.Number()), // <-- New: optional request ID to save history
+    }),
+  },
+);
