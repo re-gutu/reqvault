@@ -123,7 +123,7 @@ const ResponsePane = () => {
     : formatResponseTimestamp(currentResponse?.timestamp);
 
   return (
-    <div className="w-full h-full ">
+    <div className="w-full h-full flex flex-col">
       <div className="p-5 flex flex-wrap items-center gap-x-4 gap-y-2 font-mono text-sm">
         <Badge variant={"ghost"} className="border-l-primary shrink-0">
           {statusCodeLabel}

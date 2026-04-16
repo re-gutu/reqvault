@@ -1,8 +1,5 @@
-import {
-  ReqVaultRequest,
-  ExecuteRequest,
-  ExecuteResponse,
-} from "@/types";
+import { ReqVaultRequest, ExecuteRequest, ExecuteResponse } from "@/types";
+import { toast } from "sonner";
 
 const API_BASE = "/api"; // Thanks to the proxy we set up earlier
 
@@ -28,7 +25,11 @@ export async function createRequest(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
   });
-  if (!res.ok) throw new Error("Failed to create request");
+  if (!res.ok) {
+    toast.error(`Failed to create request`);
+    throw new Error("Failed to create request");
+  }
+  toast.success(`${data.name} saved successfully.`);
   return res.json();
 }
 
@@ -60,6 +61,7 @@ export async function updateRequest(
     throw new Error(`Failed to update request: ${res.status} - ${errorText}`);
   }
 
+  toast.success(`${data.name} is updated successfully.`);
   return res.json();
 }
 

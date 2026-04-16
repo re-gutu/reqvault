@@ -123,7 +123,7 @@ const RequestPane = () => {
               <TabsTrigger value="auth">Auth</TabsTrigger>
             </div>
 
-            <div className="flex items-center gap-2 p-2">
+            <div className="flex items-center gap-4 p-2">
               <p className="text-primary">{currentRequest.name}</p>
               <Button 
               variant={"secondary"}
