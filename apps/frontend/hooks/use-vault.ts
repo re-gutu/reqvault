@@ -11,7 +11,7 @@ import {
   type SetStateAction,
 } from "react";
 import { ReqVaultRequest, ExecuteResponse } from "@/types";
-import { executeApi, historyApi } from "@/lib/queries";
+import { executeApi, historyApi, requestsApi } from "@/lib/queries";
 
 type ReqVaultContextValue = {
   currentRequest: ReqVaultRequest;
@@ -20,6 +20,9 @@ type ReqVaultContextValue = {
   isLoading: boolean;
   sendRequest: () => Promise<void>;
   setCurrentRequest: Dispatch<SetStateAction<ReqVaultRequest>>;
+  saveCurrentRequest: (
+    newName?: string,
+  ) => Promise<ReqVaultRequest | undefined>;
 };
 
 const ReqVaultContext = createContext<ReqVaultContextValue | null>(null);
@@ -112,6 +115,47 @@ function useReqVaultState(): ReqVaultContextValue {
     }
   }, [currentRequest, isLoading]);
 
+
+  const saveCurrentRequest = useCallback(
+    async (newName?: string) => {
+      if (!currentRequest) return;
+
+      const requestToSave = newName
+        ? { ...currentRequest, name: newName }
+        : currentRequest;
+
+      try {
+        let savedRequest: ReqVaultRequest;
+
+        if (requestToSave.id) {
+          // Update existing
+          savedRequest = await requestsApi.update(
+            requestToSave.id,
+            requestToSave,
+          );
+        } else {
+          // Create new
+          savedRequest = await requestsApi.create(requestToSave);
+        }
+
+        // Update context with the saved version (now has id)
+        setCurrentRequest(savedRequest);
+
+        // Refresh the full list for sidebar
+        await requestsApi.getAll();
+
+        // Optional: Show success message
+        console.log(`Request "${savedRequest.name}" saved successfully`);
+
+        return savedRequest;
+      } catch (err) {
+        console.error("Failed to save request:", err);
+        throw err;
+      }
+    },
+    [currentRequest, requestsApi],
+  );
+
   return {
     currentRequest,
     currentResponse,
@@ -119,6 +163,7 @@ function useReqVaultState(): ReqVaultContextValue {
     isLoading,
     sendRequest,
     setCurrentRequest,
+    saveCurrentRequest,
   };
 }
 

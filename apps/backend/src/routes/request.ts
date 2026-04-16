@@ -88,37 +88,41 @@ export const requestsRoute = new Elysia({ prefix: '/requests' })
       WHERE id = ?
     `);
 
-    stmt.run(
+    const result = stmt.run(
       body.name,
-      body.method || 'GET',
+      body.method || "GET",
       body.url,
       body.headers ? JSON.stringify(body.headers) : null,
       body.queryParams ? JSON.stringify(body.queryParams) : null,
-      body.body || null,
-      body.authType || 'none',
+      body.body !== undefined ? body.body : null,
+      body.authType || null,
       body.authValue || null,
       body.tags ? JSON.stringify(body.tags) : null,
       body.collection || null,
       now,
-      params.id
+      params.id,
     );
 
+    if (result.changes === 0) {
+      return { error: "Request not found" };
+    }
+
     const updated = db.prepare('SELECT * FROM requests WHERE id = ?').get(params.id) as ReqVaultRequest | undefined;
-    return updated || { error: 'Request not found' };
-  }, {
-    body: t.Object({
-      name: t.String(),
-      method: t.Optional(t.String()),
-      url: t.String(),
-      headers: t.Optional(t.Record(t.String(), t.String())),
-      queryParams: t.Optional(t.Record(t.String(), t.String())),
-      body: t.Optional(t.String()),
-      authType: t.Optional(t.Union([t.Literal('none'), t.Literal('bearer'), t.Literal('basic'), t.Literal('apikey')])),
-      authValue: t.Optional(t.String()),
-      tags: t.Optional(t.Array(t.String())),
-      collection: t.Optional(t.String()),
-    })
-  })
+    return updated
+ }, {
+  body: t.Object({
+    name: t.String(),
+    method: t.Optional(t.String()),
+    url: t.String(),
+    headers: t.Optional(t.Union([t.Record(t.String(), t.String()), t.Null()])),
+    queryParams: t.Optional(t.Union([t.Record(t.String(), t.String()), t.Null()])),
+    body: t.Optional(t.Union([t.String(), t.Null()])),           // Allow null
+    authType: t.Optional(t.Union([t.Literal('none'), t.Literal('bearer'), t.Literal('basic'), t.Literal('apikey')])),
+    authValue: t.Optional(t.Union([t.String(), t.Null()])),
+    tags: t.Optional(t.Union([t.Array(t.String()), t.Null()])),
+    collection: t.Optional(t.Union([t.String(), t.Null()])),
+  }, { additionalProperties: true })
+})
 
   // DELETE /requests/:id
   .delete('/:id', async ({ params }) => {

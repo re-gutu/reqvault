@@ -35,13 +35,31 @@ export async function createRequest(
 export async function updateRequest(
   id: number,
   data: Partial<ReqVaultRequest>,
-): Promise<ReqVaultRequest> {
+) {
+  const cleanData = {
+    name: data.name,
+    method: data.method,
+    url: data.url,
+    headers: data.headers || null,
+    queryParams: data.queryParams || null,
+    body: data.body !== undefined ? data.body : null,
+    authType: data.authType || "none",
+    authValue: data.authValue || null,
+    tags: data.tags || null,
+    collection: data.collection || null,
+  };
+
   const res = await fetch(`${API_BASE}/requests/${id}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(data),
+    body: JSON.stringify(cleanData),
   });
-  if (!res.ok) throw new Error("Failed to update request");
+
+  if (!res.ok) {
+    const errorText = await res.text();
+    throw new Error(`Failed to update request: ${res.status} - ${errorText}`);
+  }
+
   return res.json();
 }
 

@@ -16,10 +16,16 @@ import { useReqVaultContext } from "@/hooks/use-vault";
 import KeyValueEditor from "./keyvalue-editor";
 import type { KeyValuePair } from "./keyvalue-editor";
 import BodyEditor from "./body-editor";
+import { ChevronDown } from "lucide-react";
 
 const RequestPane = () => {
-  const { currentRequest, setCurrentRequest, sendRequest, isLoading } =
-    useReqVaultContext();
+  const {
+    currentRequest,
+    setCurrentRequest,
+    saveCurrentRequest,
+    sendRequest,
+    isLoading,
+  } = useReqVaultContext();
   const [localQueryParams, setLocalQueryParams] = React.useState<
     KeyValuePair[]
   >([]);
@@ -65,7 +71,7 @@ const RequestPane = () => {
       headers: headersObj,
     }));
 
-    console.log(currentRequest)
+    console.log(currentRequest);
     sendRequest();
   };
 
@@ -109,11 +115,23 @@ const RequestPane = () => {
 
       <Tabs defaultValue="body" className="w-full h-full">
         <TabsList variant={"line"} className="w-full flex justify-between p-0">
-          <div>
-            <TabsTrigger value="params">Params</TabsTrigger>
-            <TabsTrigger value="body">Body</TabsTrigger>
-            <TabsTrigger value="headers">Headers</TabsTrigger>
-            <TabsTrigger value="auth">Auth</TabsTrigger>
+          <div className="w-full flex justify-between">
+            <div>
+              <TabsTrigger value="params">Params</TabsTrigger>
+              <TabsTrigger value="body">Body</TabsTrigger>
+              <TabsTrigger value="headers">Headers</TabsTrigger>
+              <TabsTrigger value="auth">Auth</TabsTrigger>
+            </div>
+
+            <div className="flex items-center gap-2 p-2">
+              <p className="text-primary">{currentRequest.name}</p>
+              <Button 
+              variant={"secondary"}
+              onClick={() => saveCurrentRequest()}>
+                Save
+                <ChevronDown className="ml-1 w-4 h-4" />
+              </Button>
+            </div>
           </div>
         </TabsList>
         <TabsContent value="params">
