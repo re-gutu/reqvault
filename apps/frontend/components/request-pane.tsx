@@ -26,56 +26,88 @@ const RequestPane = () => {
     sendRequest,
     isLoading,
   } = useReqVaultContext();
-  const [localQueryParams, setLocalQueryParams] = React.useState<
-    KeyValuePair[]
-  >([]);
+
+  const [localQueryParams, setLocalQueryParams] = React.useState<KeyValuePair[]>([]);
   const [localHeaders, setLocalHeaders] = React.useState<KeyValuePair[]>([]);
 
-  // Sync with context when currentRequest changes
+  // Helper: Convert KeyValuePair[] → object or null
+  const convertToObject = (pairs: KeyValuePair[]): Record<string, string> | null => {
+    const obj: Record<string, string> = {};
+    pairs.forEach(({ key, value }) => {
+      const trimmedKey = key.trim();
+      const trimmedValue = value.trim();
+      if (trimmedKey) {
+        obj[trimmedKey] = trimmedValue;
+      }
+    });
+    return Object.keys(obj).length > 0 ? obj : null;
+  };
+
+  // Sync local state when currentRequest changes (from sidebar or save)
   React.useEffect(() => {
     if (currentRequest) {
       setLocalQueryParams(
-        Object.entries(currentRequest.queryParams || {}).map(
-          ([key, value]) => ({
-            key,
-            value: String(value),
-          }),
-        ),
+        Object.entries(currentRequest.queryParams || {}).map(([key, value]) => ({
+          key,
+          value: String(value),
+        }))
       );
+
       setLocalHeaders(
         Object.entries(currentRequest.headers || {}).map(([key, value]) => ({
           key,
           value: String(value),
-        })),
+        }))
       );
+    } else {
+      setLocalQueryParams([]);
+      setLocalHeaders([]);
     }
   }, [currentRequest]);
 
-  // When user wants to send, convert back to objects
-  const handleSend = () => {
-    const queryParamsObj = Object.fromEntries(
-      localQueryParams
-        .filter((p) => p.key.trim() !== "")
-        .map((p) => [p.key, p.value]),
-    );
+const handleSend = () => {
+  if (!currentRequest) return;
 
-    const headersObj = Object.fromEntries(
-      localHeaders
-        .filter((p) => p.key.trim() !== "")
-        .map((p) => [p.key, p.value]),
-    );
+  const queryParamsObj = convertToObject(localQueryParams);
+  const headersObj = convertToObject(localHeaders);
 
-    setCurrentRequest((prev) => ({
-      ...prev,
-      queryParams: queryParamsObj,
-      headers: headersObj,
-    }));
-
-    console.log(currentRequest);
-    sendRequest();
+  const updatedRequest = {
+    ...currentRequest,
+    queryParams: queryParamsObj,
+    headers: headersObj,
   };
 
-  return (
+  // Keep state aligned for the UI
+  setCurrentRequest(updatedRequest);
+
+  // Bypasses React state lag by passing the object directly
+  sendRequest(updatedRequest);
+};
+
+const handleSave = async () => {
+  if (!currentRequest) return;
+
+  const queryParamsObj = convertToObject(localQueryParams);
+  const headersObj = convertToObject(localHeaders);
+  const cleanedName = currentRequest.name.trim() || "Untitled Request";
+
+  const updatedRequest = {
+    ...currentRequest,
+    name: cleanedName,
+    queryParams: queryParamsObj,
+    headers: headersObj,
+  };
+
+  try {
+    // Passes the clean, up-to-date object
+    await saveCurrentRequest(updatedRequest);
+  } catch (err) {
+    console.error("Save failed", err);
+  }
+};
+
+
+return (
     <div className="w-full h-full flex flex-col gap-2 py-4">
       <div className="w-full flex gap-2 px-4">
         <Select
@@ -124,10 +156,17 @@ const RequestPane = () => {
             </div>
 
             <div className="flex items-center gap-4 p-2">
-              <p className="text-primary">{currentRequest.name}</p>
+              <Input
+                value={currentRequest.name}
+                onChange={(e) =>
+                  setCurrentRequest((prev) => ({ ...prev, name: e.target.value }))
+                }
+                className="h-8 w-56"
+                placeholder="Request name"
+              />
               <Button 
               variant={"secondary"}
-              onClick={() => saveCurrentRequest()}>
+              onClick={handleSave}>
                 Save
                 <ChevronDown className="ml-1 w-4 h-4" />
               </Button>

@@ -27,7 +27,7 @@ export async function createRequest(
   });
   if (!res.ok) {
     toast.error(`Failed to create request`);
-    throw new Error("Failed to create request");
+    throw new Error("Failed to create request" + res);
   }
   toast.success(`${data.name} saved successfully.`);
   return res.json();

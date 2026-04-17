@@ -5,12 +5,10 @@ import {
 } from "@/components/ui/resizable";
 import RequestPane from "./request-pane";
 import ResponsePane from "./response-pane";
-import { ReqVaultProvider } from "@/hooks/use-vault";
 
 const Homeview = () => {
   return (
     <div className="h-screen w-full">
-      <ReqVaultProvider>
         <ResizablePanelGroup orientation="horizontal">
           <ResizablePanel>
             <RequestPane />
@@ -20,7 +18,6 @@ const Homeview = () => {
             <ResponsePane />
           </ResizablePanel>
         </ResizablePanelGroup>
-      </ReqVaultProvider>
     </div>
   );
 };

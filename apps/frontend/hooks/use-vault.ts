@@ -4,6 +4,7 @@ import {
   createContext,
   createElement,
   useContext,
+  useEffect,
   useState,
   useCallback,
   type Dispatch,
@@ -12,16 +13,22 @@ import {
 } from "react";
 import { ReqVaultRequest, ExecuteResponse } from "@/types";
 import { executeApi, historyApi, requestsApi } from "@/lib/queries";
+import { toast } from "sonner";
 
 type ReqVaultContextValue = {
   currentRequest: ReqVaultRequest;
   currentResponse: ExecuteResponse | null;
   history: any[];
   isLoading: boolean;
-  sendRequest: () => Promise<void>;
+  requestsList: ReqVaultRequest[];
+  loadAllRequests: () => Promise<void>;
+  createNewRequest: () => Promise<void>;
+  selectRequest: (request: ReqVaultRequest) => Promise<void>;
+  deleteRequest: (requestId: number) => Promise<void>;
+  sendRequest: (customRequest?: ReqVaultRequest) => Promise<void>;
   setCurrentRequest: Dispatch<SetStateAction<ReqVaultRequest>>;
   saveCurrentRequest: (
-    newName?: string,
+    customRequest?: ReqVaultRequest,
   ) => Promise<ReqVaultRequest | undefined>;
 };
 
@@ -29,100 +36,147 @@ const ReqVaultContext = createContext<ReqVaultContextValue | null>(null);
 
 function useReqVaultState(): ReqVaultContextValue {
   const [currentRequest, setCurrentRequest] = useState<ReqVaultRequest>({
-    name: "unnamed request",
-    method: "POST",
-    url: "https://jsonplaceholder.typicode.com/posts",
+    name: "",
+    method: "GET",
+    url: "https://",
   });
   const [currentResponse, setCurrentResponse] =
     useState<ExecuteResponse | null>(null);
   const [history, setHistory] = useState<any[]>([]);
+  const [requestsList, setRequestsList] = useState<ReqVaultRequest[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
-  const sendRequest = useCallback(async () => {
-    // Strong guard - only proceed if we have valid data
-    if (!currentRequest || !currentRequest.url || !currentRequest.method) {
-      console.warn(
-        "Send blocked: invalid or missing currentRequest",
-        currentRequest,
-      );
-      return;
+  // Load all saved requests (for sidebar)
+  const loadAllRequests = useCallback(async () => {
+    try {
+      const list = await requestsApi.getAll();
+      setRequestsList(list);
+      // toast("Stored collections loaded");
+    } catch (err) {
+      console.error("Failed to load requests list", err);
+      toast.error("Failed to load requests list");
     }
+  }, []);
 
-    // Prevent concurrent sends
-    if (isLoading) {
-      console.warn("Send blocked: already loading");
-      return;
-    }
+  useEffect(() => {
+    loadAllRequests();
+  }, [loadAllRequests]);
 
-    console.log("Sending request with:", {
-      method: currentRequest.method,
-      url: currentRequest.url,
-      hasBody: !!currentRequest.body,
-    });
+  // Create a new empty request
+  const createNewRequest = useCallback(async () => {
+    const newRequest: ReqVaultRequest = {
+      name: "",
+      method: "GET",
+      url: "https://",
+      headers: {},
+      queryParams: {},
+      body: null,
+      authType: "none",
+      authValue: null,
+      tags: [],
+      collection: null,
+    };
 
-    setIsLoading(true);
+    setCurrentRequest(newRequest);
+    toast("Cleared request pane");
+    setCurrentResponse(null);
+    setHistory([]);
+  }, []);
+
+  // Select / Load an existing saved request
+  const selectRequest = useCallback(async (request: ReqVaultRequest) => {
+    setCurrentRequest(request);
     setCurrentResponse(null);
 
-    try {
-      const response = await executeApi.run({
-        method: currentRequest.method,
-        url: currentRequest.url,
-        headers: currentRequest.headers || {},
-        queryParams: currentRequest.queryParams || {},
-        body: currentRequest.body,
-        authType: currentRequest.authType,
-        authValue: currentRequest.authValue,
-        requestId: currentRequest.id || undefined,
-      });
-
-      setCurrentResponse(response);
-
-      if (currentRequest.id) {
-        const updatedHistory = await historyApi.getForRequest(
-          currentRequest.id,
-        );
-        setHistory(updatedHistory);
+    if (request.id) {
+      try {
+        const hist = await historyApi.getForRequest(request.id);
+        setHistory(hist);
+      } catch (err) {
+        console.error("Failed to load history", err);
+        setHistory([]);
       }
-    } catch (error: any) {
-      console.error("Execution failed:", error);
-
-      let errorMessage = "Unknown error occurred";
-
-      if (error.name === "AbortError") {
-        errorMessage = "Request timeout (30s)";
-      } else if (
-        error.message?.includes("Failed to fetch") ||
-        error.message?.includes("NetworkError")
-      ) {
-        errorMessage =
-          "Unable to connect to the URL. Check your internet connection or the URL.";
-      } else if (error.message) {
-        errorMessage = error.message;
-      }
-
-      setCurrentResponse({
-        status: 0,
-        statusText: "Request Failed",
-        headers: {},
-        body: null,
-        durationMs: 0,
-        sizeBytes: 0,
-        timestamp: new Date().toISOString(),
-        error: errorMessage,
-      });
-    } finally {
-      setIsLoading(false);
+    } else {
+      setHistory([]);
     }
-  }, [currentRequest, isLoading]);
+  }, []);
 
+  const deleteRequest = useCallback(
+    async (requestId: number) => {
+      try {
+        await toast.promise(
+          (async () => {
+            await requestsApi.delete(requestId);
+            await loadAllRequests();
+          })(),
+          {
+            loading: "Deleting request ...",
+            success: `Request ${requestId} has been deleted`,
+            error: "Failed to delete request",
+          },
+        );
+
+        if (currentRequest.id === requestId) {
+          await createNewRequest();
+        }
+      } catch (err) {
+        console.error("Failed to delete request", err);
+        toast.error("Failed to delete request");
+      }
+    },
+    [createNewRequest, currentRequest.id, loadAllRequests],
+  );
+
+  const sendRequest = useCallback(
+    async (customRequest?: ReqVaultRequest) => {
+      // Prevent concurrent sends
+      if (isLoading) {
+        console.warn("Send blocked: already loading");
+        return;
+      }
+
+      setIsLoading(true);
+      setCurrentResponse(null);
+
+      // Fall back to context state if no direct payload was passed
+      const requestToRun = customRequest || currentRequest;
+
+      try {
+        const response = await executeApi.run({
+          method: requestToRun.method, // Used requestToRun
+          url: requestToRun.url,
+          headers: requestToRun.headers || {},
+          queryParams: requestToRun.queryParams || {},
+          body: requestToRun.body,
+          authType: requestToRun.authType,
+          authValue: requestToRun.authValue,
+          requestId: requestToRun.id || undefined,
+        });
+
+        setCurrentResponse(response);
+
+        if (requestToRun.id) {
+          const updatedHistory = await historyApi.getForRequest(
+            requestToRun.id,
+          );
+          setHistory(updatedHistory);
+        }
+      } catch (error: any) {
+        // ... Your existing catch block stays the same ...
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [currentRequest, isLoading],
+  ); // currentRequest dependency remains correct
 
   const saveCurrentRequest = useCallback(
-    async (newName?: string) => {
-      if (!currentRequest) return;
+    async (customRequest?: ReqVaultRequest) => {
+      // Added optional parameter
 
-      const requestToSave = newName
-        ? { ...currentRequest, name: newName }
-        : currentRequest;
+      const requestToSave = customRequest || currentRequest;
+
+      if (!requestToSave) return;
 
       try {
         let savedRequest: ReqVaultRequest;
@@ -140,12 +194,7 @@ function useReqVaultState(): ReqVaultContextValue {
 
         // Update context with the saved version (now has id)
         setCurrentRequest(savedRequest);
-
-        // Refresh the full list for sidebar
-        await requestsApi.getAll();
-
-        // Optional: Show success message
-        console.log(`Request "${savedRequest.name}" saved successfully`);
+        await loadAllRequests();
 
         return savedRequest;
       } catch (err) {
@@ -153,14 +202,19 @@ function useReqVaultState(): ReqVaultContextValue {
         throw err;
       }
     },
-    [currentRequest, requestsApi],
+    [currentRequest, loadAllRequests],
   );
 
   return {
     currentRequest,
     currentResponse,
     history,
+    requestsList,
     isLoading,
+    loadAllRequests,
+    createNewRequest,
+    selectRequest,
+    deleteRequest,
     sendRequest,
     setCurrentRequest,
     saveCurrentRequest,

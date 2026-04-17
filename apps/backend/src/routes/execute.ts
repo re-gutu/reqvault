@@ -6,8 +6,7 @@ import type { ExecuteRequest, ExecuteResponse } from "@/types/index";
 export const executeRoute = new Elysia({ prefix: "/execute" }).post(
   "/",
   async ({ body, set }) => {
-    console.log("Received raw body:", body);
-
+    // console.log("Received raw body:", body);
     if (!body || typeof body !== "object") {
       set.status = 400;
       return { error: "Invalid request body - expected object" };
@@ -18,13 +17,6 @@ export const executeRoute = new Elysia({ prefix: "/execute" }).post(
     };
 
     console.log("Parsed requestData:", requestData);
-
-    if (!requestData.method || !requestData.url) {
-      set.status = 400;
-      return {
-        error: `Missing required fields. Got method: ${requestData.method}, url: ${requestData.url}`,
-      };
-    }
 
     const startTime = Date.now();
 
@@ -38,8 +30,7 @@ export const executeRoute = new Elysia({ prefix: "/execute" }).post(
         fullUrl += (fullUrl.includes("?") ? "&" : "?") + params.toString();
       }
 
-      const headers = { ...requestData.headers };
-
+      const headers = { ...(requestData.headers || {}) };
       // Handle authentication
       if (requestData.authType && requestData.authValue) {
         if (requestData.authType === "bearer") {
@@ -148,9 +139,14 @@ export const executeRoute = new Elysia({ prefix: "/execute" }).post(
     body: t.Object({
       method: t.String(),
       url: t.String(),
-      headers: t.Optional(t.Record(t.String(), t.String())),
-      queryParams: t.Optional(t.Record(t.String(), t.String())),
-      body: t.Optional(t.String()),
+      // FIX: Allow null in the schema
+      headers: t.Optional(
+        t.Union([t.Record(t.String(), t.String()), t.Null()]),
+      ),
+      queryParams: t.Optional(
+        t.Union([t.Record(t.String(), t.String()), t.Null()]),
+      ),
+      body: t.Optional(t.Union([t.String(), t.Null()])),
       authType: t.Optional(
         t.Union([
           t.Literal("none"),
@@ -159,8 +155,8 @@ export const executeRoute = new Elysia({ prefix: "/execute" }).post(
           t.Literal("apikey"),
         ]),
       ),
-      authValue: t.Optional(t.String()),
-      requestId: t.Optional(t.Number()), // <-- New: optional request ID to save history
+      authValue: t.Optional(t.Union([t.String(), t.Null()])),
+      requestId: t.Optional(t.Number()),
     }),
   },
 );

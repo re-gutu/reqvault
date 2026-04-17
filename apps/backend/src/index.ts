@@ -2,14 +2,22 @@
 import { Elysia } from "elysia";
 import { cors } from "@elysiajs/cors";
 import { initializeTables } from "./schema";
-import { executeRoute } from './routes/execute';
-import { requestsRoute } from './routes/request';
+import { executeRoute } from "./routes/execute";
+import { requestsRoute } from "./routes/request";
 import { historyRoute } from "./routes/history";
 
 const app = new Elysia()
-  .use(cors({
-    origin: ["http://localhost:3000"],   // Allow frontend
-  }))
+  .onError(({ code, error, set }) => {
+    if (code === "VALIDATION") {
+      console.error(error.all); // This will print EXACTLY which field failed validation
+      return error.all;
+    }
+  })
+  .use(
+    cors({
+      origin: ["http://localhost:3000"], // Allow frontend
+    }),
+  )
   .get("/", () => ({ message: "ReqVault Backend is running!" }))
   .get("/health", () => ({ status: "ok", db: "connected" }));
 
