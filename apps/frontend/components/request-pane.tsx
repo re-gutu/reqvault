@@ -29,6 +29,13 @@ const RequestPane = () => {
 
   const [localQueryParams, setLocalQueryParams] = React.useState<KeyValuePair[]>([]);
   const [localHeaders, setLocalHeaders] = React.useState<KeyValuePair[]>([]);
+  const [localAuthType, setLocalAuthType] = React.useState<
+    "none" | "bearer" | "basic" | "apikey"
+  >("none");
+  const [localAuthValue, setLocalAuthValue] = React.useState("");
+  const lastHeadersRef = React.useRef<any>(null);
+  const lastParamsRef = React.useRef<any>(null);
+  const lastRequestIdRef = React.useRef<number | undefined>(undefined);
 
   // Helper: Convert KeyValuePair[] → object or null
   const convertToObject = (pairs: KeyValuePair[]): Record<string, string> | null => {
@@ -43,25 +50,37 @@ const RequestPane = () => {
     return Object.keys(obj).length > 0 ? obj : null;
   };
 
-  // Sync local state when currentRequest changes (from sidebar or save)
   React.useEffect(() => {
-    if (currentRequest) {
+    if (!currentRequest) return;
+
+    // Check if a different request was loaded OR if headers/params were updated externally
+    const isNewRequestLoaded = currentRequest.id !== lastRequestIdRef.current;
+    const areHeadersUpdatedExternally = currentRequest.headers !== lastHeadersRef.current;
+    const areParamsUpdatedExternally = currentRequest.queryParams !== lastParamsRef.current;
+
+    // ONLY sync if one of these is true.
+    // If the user is just typing in the URL, these will all be false!
+    if (isNewRequestLoaded || areHeadersUpdatedExternally || areParamsUpdatedExternally) {
       setLocalQueryParams(
         Object.entries(currentRequest.queryParams || {}).map(([key, value]) => ({
           key,
           value: String(value),
-        }))
+        })),
       );
 
       setLocalHeaders(
         Object.entries(currentRequest.headers || {}).map(([key, value]) => ({
           key,
           value: String(value),
-        }))
+        })),
       );
-    } else {
-      setLocalQueryParams([]);
-      setLocalHeaders([]);
+      setLocalAuthType(currentRequest.authType || "none");
+      setLocalAuthValue(currentRequest.authValue || "");
+
+      // Update refs to track the current state for the next render
+      lastRequestIdRef.current = currentRequest.id;
+      lastHeadersRef.current = currentRequest.headers;
+      lastParamsRef.current = currentRequest.queryParams;
     }
   }, [currentRequest]);
 
@@ -75,6 +94,8 @@ const handleSend = () => {
     ...currentRequest,
     queryParams: queryParamsObj,
     headers: headersObj,
+    authType: localAuthType,
+    authValue: localAuthType === "none" ? null : localAuthValue.trim() || null,
   };
 
   // Keep state aligned for the UI
@@ -96,6 +117,8 @@ const handleSave = async () => {
     name: cleanedName,
     queryParams: queryParamsObj,
     headers: headersObj,
+    authType: localAuthType,
+    authValue: localAuthType === "none" ? null : localAuthValue.trim() || null,
   };
 
   try {
@@ -207,7 +230,51 @@ return (
           </div>
         </TabsContent>
         <TabsContent value="auth">
-          <div className="w-full h-full flex items-center justify-center bg-muted"></div>
+          <div className="w-full h-full bg-muted p-4 flex flex-col gap-3">
+            <div className="max-w-xl flex flex-col gap-2">
+              <p className="text-sm font-medium">Authentication</p>
+              <Select
+                value={localAuthType}
+                onValueChange={(value) =>
+                  setLocalAuthType(value as "none" | "bearer" | "basic" | "apikey")
+                }
+              >
+                <SelectTrigger className="w-[220px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    <SelectItem value="none">No Auth</SelectItem>
+                    <SelectItem value="bearer">Bearer Token</SelectItem>
+                    <SelectItem value="basic">Basic Auth</SelectItem>
+                    <SelectItem value="apikey">API Key</SelectItem>
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {localAuthType !== "none" && (
+              <div className="max-w-xl flex flex-col gap-2">
+                <p className="text-sm text-muted-foreground">
+                  {localAuthType === "bearer" && "Bearer token"}
+                  {localAuthType === "basic" && "Basic auth value (username:password)"}
+                  {localAuthType === "apikey" && "API key value"}
+                </p>
+                <Input
+                  value={localAuthValue}
+                  onChange={(e) => setLocalAuthValue(e.target.value)}
+                  placeholder={
+                    localAuthType === "bearer"
+                      ? "token"
+                      : localAuthType === "basic"
+                        ? "username:password"
+                        : "api-key"
+                  }
+                  className="font-mono"
+                />
+              </div>
+            )}
+          </div>
         </TabsContent>
       </Tabs>
     </div>
